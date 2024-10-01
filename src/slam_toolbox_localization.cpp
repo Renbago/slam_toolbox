@@ -44,6 +44,10 @@ LocalizationSlamToolbox::LocalizationSlamToolbox(rclcpp::NodeOptions options)
       std::bind(&LocalizationSlamToolbox::desiredPoseCheck, this,
       std::placeholders::_1, std::placeholders::_2));
 
+  ssGetElevatorMode_ = this->create_service<slam_toolbox::srv::ElevatorMode>(
+      "slam_toolbox/elevator_mode",
+      std::bind(&LocalizationSlamToolbox::elevatorMode, this,
+      std::placeholders::_1, std::placeholders::_2));
 
   // in localization mode, we cannot allow for interactive mode
   enable_interactive_mode_ = false;
@@ -229,6 +233,14 @@ LocalizedRangeScan * LocalizationSlamToolbox::addScan(
   return range_scan;
 }
 
+void LocalizationSlamToolbox::setInitialParametersElevatorMode(double position_search_maximum_distance, double position_search_distance){
+  std::cout << "localization_slam_toolbox: Setting elevator mode parameters" << std::endl;
+  smapper_->getMapper()->setParamLoopSearchMaximumDistance(position_search_maximum_distance);
+  smapper_->getMapper()->setParamLoopSearchSpaceDimension(position_search_distance);
+  smapper_->getMapper()->m_Initialized = false;
+}
+
+
 void LocalizationSlamToolbox::setInitialParametersForDesiredPose(double position_search_distance, double position_search_maximum_distance, double position_search_fine_angle_offset,
                           double position_search_coarse_angle_offset, double position_search_coarse_angle_resolution, double position_search_resolution, 
                           double position_search_smear_deviation,bool do_loop_closing_flag){
@@ -242,7 +254,6 @@ void LocalizationSlamToolbox::setInitialParametersForDesiredPose(double position
   smapper_->getMapper()->setParamLoopSearchSpaceSmearDeviation(position_search_smear_deviation);
   smapper_->getMapper()->setParamDoLoopClosing(do_loop_closing_flag);
   smapper_->getMapper()->m_Initialized = false;
-
 }
 
 /*****************************************************************************/
@@ -362,6 +373,27 @@ bool LocalizationSlamToolbox::desiredPoseCheck(
         return false;
         }
     }
+}
+
+bool LocalizationSlamToolbox::elevatorMode(
+    const std::shared_ptr<slam_toolbox::srv::ElevatorMode::Request> req,
+    std::shared_ptr<slam_toolbox::srv::ElevatorMode::Response> res) 
+{
+  if (req->inside_elev_zone){
+    RCLCPP_INFO(get_logger(), "LocalizationSlamToolbox: Elevator zone settings are enabled");
+    double position_search_maximum_distance = 1.0;
+    double position_search_distance = 1.0;
+    setInitialParametersElevatorMode(position_search_maximum_distance, position_search_distance);
+    res->message = "Elevator mode is enabled";
+    res->success = true;
+    return true;
+  } else {
+    RCLCPP_INFO(get_logger(), "LocalizationSlamToolbox: Elevator zone settings are disabled");
+    setInitialParametersElevatorMode(this->get_parameter("loop_search_space_dimension").as_double(),this->get_parameter("loop_search_maximum_distance").as_double());
+    res->message = "Elevator mode is disabled";
+    res->success = true;
+    return true;
+  }
 }
 
 /*****************************************************************************/
