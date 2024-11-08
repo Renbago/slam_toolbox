@@ -233,11 +233,11 @@ LocalizedRangeScan * LocalizationSlamToolbox::addScan(
   return range_scan;
 }
 
-void LocalizationSlamToolbox::setInitialParametersElevatorMode(double position_search_maximum_distance, double position_search_distance){
+void LocalizationSlamToolbox::setInitialParametersElevatorMode(double position_search_maximum_distance, double position_search_space_dimension_distance){
   std::cout << "localization_slam_toolbox: Setting elevator mode parameters" << std::endl;
   smapper_->getMapper()->setParamLoopSearchMaximumDistance(position_search_maximum_distance);
-  smapper_->getMapper()->setParamLoopSearchSpaceDimension(position_search_distance);
-  smapper_->getMapper()->m_Initialized = false;
+  smapper_->getMapper()->setParamLoopSearchSpaceDimension(position_search_space_dimension_distance);
+  smapper_->getMapper()->GetGraph()->UpdateLoopScanMatcher(30.0);
 }
 
 
@@ -380,19 +380,21 @@ bool LocalizationSlamToolbox::elevatorMode(
     std::shared_ptr<slam_toolbox::srv::ElevatorMode::Response> res) 
 {
   if (req->inside_elev_zone){
+    boost::mutex::scoped_lock lock(smapper_mutex_);
     RCLCPP_INFO(get_logger(), "LocalizationSlamToolbox: Elevator zone settings are enabled");
     double position_search_maximum_distance = 1.0;
-    double position_search_distance = 1.0;
-    setInitialParametersElevatorMode(position_search_maximum_distance, position_search_distance);
+    double position_search_space_dimension_distance = 1.0;
+    setInitialParametersElevatorMode(position_search_maximum_distance, position_search_space_dimension_distance);
     res->message = "Elevator mode is enabled";
     res->success = true;
     return true;
   } else {
+    boost::mutex::scoped_lock lock(smapper_mutex_);
     RCLCPP_INFO(get_logger(), "LocalizationSlamToolbox: Elevator zone settings are disabled");
-    setInitialParametersElevatorMode(this->get_parameter("loop_search_space_dimension").as_double(),this->get_parameter("loop_search_maximum_distance").as_double());
+    setInitialParametersElevatorMode(this->get_parameter("loop_search_maximum_distance").as_double(),this->get_parameter("loop_search_space_dimension").as_double());
     res->message = "Elevator mode is disabled";
     res->success = true;
-    return true;
+    return true;  
   }
 }
 
